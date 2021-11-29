@@ -26,8 +26,8 @@ jobs:
     - name: linux
       if:   runner.os == 'Linux' 
       run:  |
-        sudo apt install libopenmpi-dev python3-pip
-        python3 -m pip install mpi4py
+        sudo apt -y install libopenmpi-dev python3-pip
+        python3 -m pip install setuptools cython mpi4py
         cd ~/
         git clone https://github.com/Edric-Matwiejew/mpi_and_python.git
         cd mpi_and_python
