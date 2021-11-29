@@ -1,6 +1,6 @@
 ## 1. Setup for the workshop
 
-To follow along with the session, you'll need access to a computer with an MPI installation, Python 3 and, the python packages mpi4py, numpy and matplotlib. This can be occur through your allocation on Topaz, Magnus or Nimbus. You can also install your software on your own laptop.
+To follow along with the session, you'll need access to a computer with an MPI installation, Python 3 and, the python packages mpi4py, numpy, scipy and matplotlib. This can be occur through your allocation on Topaz, Magnus or Nimbus. You can also install your software on your own laptop.
 
 Below are instructions covering some of the ways that the nessecary software can be installed. It's OK to use a different installation method, just confirm that you can run the test program 'hello_world.py' as described in Section 1.2.
 
