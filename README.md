@@ -6,7 +6,7 @@ Below are instructions covering some of the ways that the nessecary software can
 
 ### Magnus Users
 
-Python 3 and MPI4Py are available as modules.
+Python 3 and numpy, scipy and mpi4py are available as modules.
 
 ### Topaz Users
 
