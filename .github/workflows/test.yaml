@@ -28,7 +28,7 @@ jobs:
       run:  |
         sudo apt -y install libopenmpi-dev python3-pip
         python3 -m pip install setuptools cython 
-        python3 -m pip install mpi4py
+        python3 -m pip install numpy mpi4py matplotlib
         cd ~/
         git clone https://github.com/Edric-Matwiejew/mpi_and_python.git
         cd mpi_and_python
@@ -42,7 +42,7 @@ jobs:
       if: runner.os == 'macOS'
       run:  |
         brew install open-mpi
-        brew install mpi4py
+        brew install mpi4py numpy matplotlib
         cd ~/
         git clone https://github.com/Edric-Matwiejew/mpi_and_python.git
         cd mpi_and_python
