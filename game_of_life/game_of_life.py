@@ -1,142 +1,189 @@
-# Python code to implement Conway's Game Of Life
-import argparse
-import numpy as np
+from mpi4py import MPI
 import matplotlib.pyplot as plt
-import matplotlib.animation as animation
+import numpy as np
 
-# setting up the values for the grid
-ON = 255
-OFF = 0
-vals = [ON, OFF]
+size=MPI.COMM_WORLD.size
+rank=MPI.COMM_WORLD.rank
+num_points=60
+sendbuf=[]
+root=0
+dx=1.0/(num_points-1)
+from numpy import r_
+j=np.complex(0,1)
+rows_per_process=int(num_points/size)
+max_iter=1000000
+num_iter=0
+total_err=1
+err_list = np.empty(size, dtype = np.float64)
+target_err = 1e-6
 
-def randomGrid(N):
+def numpyTimeStep(u,dx,dy):
+    dx2, dy2 = dx**2, dy**2
+    dnr_inv = 0.5/(dx2 + dy2)
+    u_old=u.copy()
+    # The actual iteration
+    u[1:-1, 1:-1] = ((u[0:-2, 1:-1] + u[2:, 1:-1])*dy2 +
+                     (u[1:-1,0:-2] + u[1:-1, 2:])*dx2)*dnr_inv
+    v = (u - u_old).flat
+    return u,np.sqrt(np.dot(v,v))
 
-	"""returns a grid of NxN random values"""
-	return np.random.choice(vals, N*N, p=[0.2, 0.8]).reshape(N, N)
 
-def addGlider(i, j, grid):
+if rank==0:
+    m=np.zeros((num_points,num_points),dtype=float)
+    pi_c=np.pi
+    x=r_[0:2*pi_c:num_points*j]
+    m[0,:]=np.sin(x)
+    m[num_points-1,:]=np.sin(x)
+    m[:,0]=np.sin(x)
+    m[:,-1]=np.sin(x)
+    l=np.array([ m[i*rows_per_process:(i+1)*rows_per_process,:] for i in range(size)])
+    sendbuf=l
 
-	"""adds a glider with top left cell at (i, j)"""
-	glider = np.array([[0, 0, 255],
-					[255, 0, 255],
-					[0, 255, 255]])
-	grid[i:i+3, j:j+3] = glider
+my_grid = np.empty((rows_per_process, num_points), dtype = np.float64)
 
-def addGosperGliderGun(i, j, grid):
+# caps un caps
+MPI.COMM_WORLD.Scatter(
+        [sendbuf, MPI.DOUBLE],
+        [my_grid, MPI.DOUBLE],
+        root = 0)
 
-	"""adds a Gosper Glider Gun with top left
-	cell at (i, j)"""
-	gun = np.zeros(11*38).reshape(11, 38)
+if rank > 0:
+    row_above = np.empty((1, num_points), dtype = np.float64)
+if rank < size - 1:
+    row_below = np.empty((1, num_points), dtype = np.float64)
 
-	gun[5][1] = gun[5][2] = 255
-	gun[6][1] = gun[6][2] = 255
 
-	gun[3][13] = gun[3][14] = 255
-	gun[4][12] = gun[4][16] = 255
-	gun[5][11] = gun[5][17] = 255
-	gun[6][11] = gun[6][15] = gun[6][17] = gun[6][18] = 255
-	gun[7][11] = gun[7][17] = 255
-	gun[8][12] = gun[8][16] = 255
-	gun[9][13] = gun[9][14] = 255
+# tags
+# row_above: rank of sender * 2
+# row_below: rank of sender * 2 + 1
 
-	gun[1][25] = 255
-	gun[2][23] = gun[2][25] = 255
-	gun[3][21] = gun[3][22] = 255
-	gun[4][21] = gun[4][22] = 255
-	gun[5][21] = gun[5][22] = 255
-	gun[6][23] = gun[6][25] = 255
-	gun[7][25] = 255
+total_err = np.inf
+while num_iter <  max_iter:
 
-	gun[3][35] = gun[3][36] = 255
-	gun[4][35] = gun[4][36] = 255
+    if total_err < target_err:
+        break
 
-	grid[i:i+11, j:j+38] = gun
 
-def update(frameNum, img, grid, N):
 
-	# copy grid since we require 8 neighbors
-	# for calculation and we go line by line
-	newGrid = grid.copy()
-	for i in range(N):
-		for j in range(N):
+    if rank == 0:
 
-			# compute 8-neighbor sum
-			# using toroidal boundary conditions - x and y wrap around
-			# so that the simulaton takes place on a toroidal surface.
-			total = int((grid[i, (j-1)%N] + grid[i, (j+1)%N] +
-						grid[(i-1)%N, j] + grid[(i+1)%N, j] +
-						grid[(i-1)%N, (j-1)%N] + grid[(i-1)%N, (j+1)%N] +
-						grid[(i+1)%N, (j-1)%N] + grid[(i+1)%N, (j+1)%N])/255)
 
-			# apply Conway's rules
-			if grid[i, j] == ON:
-				if (total < 2) or (total > 3):
-					newGrid[i, j] = OFF
-			else:
-				if total == 3:
-					newGrid[i, j] = ON
+        MPI.COMM_WORLD.Isend(
+                [my_grid[-1,:], MPI.DOUBLE],
+                dest = 1,
+                tag = rank * 2)
 
-	# update data
-	img.set_data(newGrid)
-	grid[:] = newGrid[:]
-	return img,
+    if rank > 0 and rank< size-1:
 
-# main() function
-def main():
+        #print(rank, my_grid[-1,:], flush = True)
 
-	# Command line args are in sys.argv[1], sys.argv[2] ..
-	# sys.argv[0] is the script name itself and can be ignored
-	# parse arguments
-	parser = argparse.ArgumentParser(description="Runs Conway's Game of Life simulation.")
 
-	# add arguments
-	parser.add_argument('--grid-size', dest='N', required=False)
-	parser.add_argument('--mov-file', dest='movfile', required=False)
-	parser.add_argument('--interval', dest='interval', required=False)
-	parser.add_argument('--glider', action='store_true', required=False)
-	parser.add_argument('--gosper', action='store_true', required=False)
-	args = parser.parse_args()
-	
-	# set grid size
-	N = 100
-	if args.N and int(args.N) > 8:
-		N = int(args.N)
-		
-	# set animation update interval
-	updateInterval = 50
-	if args.interval:
-		updateInterval = int(args.interval)
+        MPI.COMM_WORLD.Irecv(
+                [row_above, MPI.DOUBLE],
+                source = rank - 1,
+                tag = (rank - 1) * 2)
 
-	# declare grid
-	grid = np.array([])
+        MPI.COMM_WORLD.Isend(
+                [my_grid[-1,:], MPI.DOUBLE],
+                dest = rank + 1,
+                tag = rank * 2)
 
-	# check if "glider" demo flag is specified
-	if args.glider:
-		grid = np.zeros(N*N).reshape(N, N)
-		addGlider(1, 1, grid)
-	elif args.gosper:
-		grid = np.zeros(N*N).reshape(N, N)
-		addGosperGliderGun(10, 10, grid)
+    if rank==size-1:
+        #print(rank, my_grid[0,:], flush = True)
 
-	else: # populate grid with random on/off -
-			# more off than on
-		grid = randomGrid(N)
+        MPI.COMM_WORLD.Irecv(
+                [row_above, MPI.DOUBLE],
+                source = rank - 1,
+                tag = (rank - 1)* 2)
 
-	# set up animation
-	fig, ax = plt.subplots()
-	img = ax.imshow(grid, interpolation='nearest')
-	ani = animation.FuncAnimation(fig, update, fargs=(img, grid, N, ),
-								frames = 10,
-								interval=updateInterval,
-								save_count=50)
+        MPI.COMM_WORLD.Isend(
+                [my_grid[0,:], MPI.DOUBLE],
+                dest = rank - 1,
+                tag = rank * 2 + 1)
 
-	# # of frames?
-	# set output file
-	if args.movfile:
-		ani.save(args.movfile, fps=30, extra_args=['-vcodec', 'libx264'])
+    #print(rank, flush = True)
+    if rank > 0 and rank< size-1:
 
-	plt.show()
+        MPI.COMM_WORLD.Irecv(
+                [row_below, MPI.DOUBLE],
+                source = rank + 1,
+                tag = (rank + 1) * 2 + 1)
 
-# call main
-if __name__ == '__main__':
-	main()
+        MPI.COMM_WORLD.Isend(
+                [my_grid[0,:], MPI.DOUBLE],
+                dest = rank - 1,
+                tag = rank * 2 + 1)
+
+    if rank==0:
+
+        MPI.COMM_WORLD.Irecv(
+                [row_below, MPI.DOUBLE],
+                source = 1,
+                tag = 3)
+
+
+
+    MPI.COMM_WORLD.Barrier()
+    #print(rank, flush = True)
+
+    if rank >0 and rank < size-1:
+
+        row_below.shape=(1,num_points)
+        row_above.shape=(1,num_points)
+
+        u,err =numpyTimeStep(r_[row_above,my_grid,row_below],dx,dx)
+
+        my_grid=u[1:-1,:]
+
+
+    #print(rank, flush = True)
+    if rank==0:
+
+        row_below.shape=(1,num_points)
+        u,err=numpyTimeStep(r_[my_grid,row_below],dx,dx)
+        my_grid=u[0:-1,:]
+
+
+    #print(rank, flush = True)
+    if rank==size-1:
+
+        row_above.shape=(1,num_points)
+        u,err=numpyTimeStep(r_[row_above,my_grid],dx,dx)
+        my_grid=u[1:,:]
+
+
+    #print(rank, '153', flush = True)
+
+    if num_iter%500==0:
+
+        MPI.COMM_WORLD.Gather(
+                [err, MPI.DOUBLE],
+                [err_list, MPI.DOUBLE],
+                root)
+
+        if rank==0:
+            total_err = 0
+            for a in err_list:
+                total_err=total_err+np.math.sqrt( a**2)
+            total_err=np.math.sqrt(total_err)
+            print("iterations: %i"%num_iter, "error: %f"%total_err, flush= True)
+
+        total_err = MPI.COMM_WORLD.bcast(
+                total_err,
+                root)
+    #print(num_iter, rank, total_err)
+
+    MPI.COMM_WORLD.Barrier()
+    num_iter=num_iter+1
+
+MPI.COMM_WORLD.Barrier()
+#print(my_grid.shape, rank)
+
+recvbuf=MPI.COMM_WORLD.gather(my_grid,root)
+if rank==0:
+    sol=np.array(recvbuf)
+    sol=sol.reshape([num_points,num_points])
+    print(num_iter)
+    #print(sol)
+    plt.matshow(sol)
+    plt.savefig('show')
