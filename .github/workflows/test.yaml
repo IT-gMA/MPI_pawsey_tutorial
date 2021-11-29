@@ -42,7 +42,8 @@ jobs:
       if: runner.os == 'macOS'
       run:  |
         brew install open-mpi
-        brew install mpi4py numpy matplotlib
+        brew install mpi4py
+        pip3 install numpy matplotlib
         cd ~/
         git clone https://github.com/Edric-Matwiejew/mpi_and_python.git
         cd mpi_and_python
