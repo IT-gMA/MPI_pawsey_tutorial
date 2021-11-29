@@ -2,7 +2,7 @@
 
 To follow along with the session, you'll need access to a computer with an MPI installation, Python 3 and, the python packages mpi4py, numpy and matplotlib. This can be occur through your allocation on Topaz, Magnus or Nimbus. You can also install your software on your own laptop.
 
-Below are instructions covering some of the ways that the nessecary software can be installed. It's OK to use a different installation method, just confirm that you can run the test program 'hello_world.py' as described in Section 2.
+Below are instructions covering some of the ways that the nessecary software can be installed. It's OK to use a different installation method, just confirm that you can run the test program 'hello_world.py' as described in Section 1.2.
 
 ### Magnus Users
 
@@ -36,7 +36,7 @@ Using the 'apt' package manager on which you have 'superuser' privileges (this w
         python3 -m pip install setuptools cython 
         python3 -m pip install numpy mpi4py matplotlib
 
-## 2. Testing Your Setup
+## 1.2. Testing Your Setup
 
 ### Magnus
 
@@ -65,9 +65,9 @@ Using the 'apt' package manager on which you have 'superuser' privileges (this w
   
 In each instance, the final command should output in multiple instance of "Hello world from MPI rank #!", where # is an integer. 
 
-## Workshop Exercises 
+## 2. Workshop Exercises 
 
-### 1. Send and Recieve
+### 2.1 Send and Recieve
 
 The program shown below contains two bugs, identify the errors and correct them so the code executes successfully.
 
@@ -92,7 +92,7 @@ else:
     print(recv_array)
 ```
 
-### 2. Scatter
+### 2.2 Scatter
 
 Starting with the following 2-dimensional array at rank 0:
 
@@ -147,9 +147,8 @@ Rank:2
 [10 10 10 10 10 10 10 10 10]]
 ```
 
- 
 
-### 1. (c)
+### 2.3 Communication on a 2D Grid
 
 Adding on to your code from 2, implement a single pass of the communication pattern:
 
@@ -176,10 +175,6 @@ if rank > 0 and rank < size - 1:
 
 For each MPI process, at the values of `lower` and `upper` to the rows of `local_array`, as shown below.
 
- 
-
- 
-
 ```python
 
 for i in range(local_array.shape[0]):
@@ -188,8 +183,6 @@ for i in range(local_array.shape[0]):
 ```
 
 If only `lower` or `upper` were sent to the MPI process, add them only.
-
-Place an barrier (`COMM.Barrier()`) to keep the output of this question seperate from 1 (a) and print `local_array` at each rank using:
 
 ```python
 print(local_array, '\n', flush = True)
@@ -201,136 +194,47 @@ Rank 0:
 
 ```
 [[4 4 4 4 4 4 4 4 4]
-
 [5 5 5 5 5 5 5 5 5]
-
 [6 6 6 6 6 6 6 6 6]]
-
 ```
 
 Rank 1:
 
 ```
-
 [[14 14 14 14 14 14 14 14 14]
-
 [15 15 15 15 15 15 15 15 15]
-
 [16 16 16 16 16 16 16 16 16]]
-
 ```
 
 Rank:2
 
 ```
-
 [[14 14 14 14 14 14 14 14 14]
-
 [15 15 15 15 15 15 15 15 15]
-
 [16 16 16 16 16 16 16 16 16]]
-
 ```
 
- 
-
-### 1 (d):
-
- 
+### 2.4 Broadcast
 
 Take the average of the all of the elements in the `local_array` and store the averages in an array of length `size` called `averages`. Use `Gather` to collect the averages to `rank=0`.
 
- 
-
 Use the code snippet below to calculate the sum of the averages and then broadcast the sum to each process in `COMM_WORLD`. 
 
- 
-
 ```python
-
 if rank == 0:
-
     average_sum = 0
-
     for av in averages:
-
         average_sum += av
-
 else:
-
     average_sum = None
 
 average_sum = COMM.bcast(average_sum, root = 0)
 
- 
-
 print(average_sum, flush = True)
-
 ```
 
- 
-
-Again use a `COMM.Barrier()` to keep this output seperate from the rest of the questions.
-
- 
-
- 
-
-### 1 (e)
-
- 
+### 2.5 Gather
 
 Use `COMM.Gather` to gather `local_array` to the `rank = 0`. At rank = 0, reshape the the recieved array into a matrix of dimensions `(2, 2)` using the NumPy `reshape` function.
 
- 
-
-### 2 (marks 3):
-
- 
-
-Writes function that performs Jocobi iteration on a 2D array. It should take a 2D array as input, and return the updated array, and the error (epsilon in the slides).
-
- 
-
-Use this 'kernel' in combination with the MPI code written in part 1 to implement a parallel Laplace solver.
-
- 
-
-Solve for a system of `60 x 60` vertices the Laplace equation with initial conditions:
-
- 
-
-```python
-
-m=np.zeros((num_points,num_points),dtype=float)
-
-pi_c=np.pi
-
-x = np.linspace(0,pi_c,num_points)
-
-m[0,:]=np.sin(x)
-
-m[num_points-1,:]=np.sin(x)
-
-```
-
- 
-
-Define array `m` ar `rank = 0` and distribute the array following the method you used in question 1 (b).
-
-Plot your solution using the matplotlib function `matshow` and compare your result to `part_2_expected_output.png`. They should appear (very) similar.
-
- 
-
-### 3 (marks 2):
-
- 
-
-Transfer your code to the QUISA workstation. Using the example *.slurm file as a template, run your code on 2, 4, 6, 8 and 16 processes. Time the program wall time using `time`, as shown in the slurm file.
-
- 
-
-Start off with a grid of size `(1000 x 1000)`. If that that takes too long, work down from there.
-
- 
-
+### 2.6 Putting it All Together: John Conway's Game of Life
