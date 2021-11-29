@@ -1,54 +1,88 @@
 from mpi4py import MPI
 import matplotlib.pyplot as plt
 import numpy as np
+from scipy import signal
 
+# number of processes in the MPI communicator
 size=MPI.COMM_WORLD.size
+# ID of each process in the MPI communicator
 rank=MPI.COMM_WORLD.rank
+# number of rows and columns in the game of life grid
 num_points=60
+# ?
 sendbuf=[]
+# 'root' process collects the final result of each iteration
 root=0
-dx=1.0/(num_points-1)
-from numpy import r_
-j=np.complex(0,1)
-rows_per_process=int(num_points/size)
-max_iter=1000000
-num_iter=0
-total_err=1
-err_list = np.empty(size, dtype = np.float64)
-target_err = 1e-6
 
-def numpyTimeStep(u,dx,dy):
-    dx2, dy2 = dx**2, dy**2
-    dnr_inv = 0.5/(dx2 + dy2)
-    u_old=u.copy()
-    # The actual iteration
-    u[1:-1, 1:-1] = ((u[0:-2, 1:-1] + u[2:, 1:-1])*dy2 +
-                     (u[1:-1,0:-2] + u[1:-1, 2:])*dx2)*dnr_inv
-    v = (u - u_old).flat
-    return u,np.sqrt(np.dot(v,v))
+from numpy import r_
+#j=np.complex(0,1)
+# the number of rows at each rank
+rows_per_process=int(num_points/size)
+
+# number of game iterations 
+num_iter=0
+# maximum number of iterations
+max_iter=100
+
+# 'alive' cells in the game
+current_population=1
+# 'alive' cell at each rank   
+population_list = np.empty(size, dtype = np.float64)
+# stop when there are no 'alive' cells
+stop_population = 0
+
+def numpyTimeStep(u):
+
+    kernel = np.ones((3,3), dtype = float)
+    kernel[1,1] = 0
+
+
+    m = u.shape[0]
+    n = u.shape[1]
+
+    u_old = u.copy()
+
+    neighbours = signal.convolve(u, kernel, mode='same')
+    
+    for i in range(m):
+        for j in range(n):
+            if u_old[i,j] == 1:
+                if neighbours[i,j] < 2:
+                    u[i,j] = 0
+                elif neighbours[i,j] > 3:
+                    u[i,j] = 0
+            else:
+                if neighbours[i,j] == 3:
+                    u[i,j] = 1
+
+    return u, u.sum()
 
 
 if rank==0:
-    m=np.zeros((num_points,num_points),dtype=float)
-    pi_c=np.pi
-    x=r_[0:2*pi_c:num_points*j]
-    m[0,:]=np.sin(x)
-    m[num_points-1,:]=np.sin(x)
-    m[:,0]=np.sin(x)
-    m[:,-1]=np.sin(x)
+
+    # populate initial array
+    #m=np.zeros((num_points,num_points),dtype=float)
+    m = np.random.choice(np.array([0,1], dtype = float), size=(num_points,num_points), p = [0.7,0.3])
+
+    # game paritions to send
     l=np.array([ m[i*rows_per_process:(i+1)*rows_per_process,:] for i in range(size)])
     sendbuf=l
 
+# local game game partitions
 my_grid = np.empty((rows_per_process, num_points), dtype = np.float64)
 
-# caps un caps
+# Scatter the game partitions 
 MPI.COMM_WORLD.Scatter(
         [sendbuf, MPI.DOUBLE],
         [my_grid, MPI.DOUBLE],
         root = 0)
 
+# for all ranks except rank '0' (the 'top') create an array
+# for recieval of the boarder-values from the 'above' rank.
 if rank > 0:
     row_above = np.empty((1, num_points), dtype = np.float64)
+# for all ranks except rank 'size - 1' create an array
+# for the recieval of the boarder-values from the 'below' rank.
 if rank < size - 1:
     row_below = np.empty((1, num_points), dtype = np.float64)
 
@@ -57,14 +91,14 @@ if rank < size - 1:
 # row_above: rank of sender * 2
 # row_below: rank of sender * 2 + 1
 
-total_err = np.inf
+current_population = np.inf
 while num_iter <  max_iter:
 
-    if total_err < target_err:
+    if current_population < stop_population:
         break
 
-
-
+    # non-blocking send from rank 0 to 
+    # rank 1.
     if rank == 0:
 
 
@@ -73,10 +107,10 @@ while num_iter <  max_iter:
                 dest = 1,
                 tag = rank * 2)
 
+    
+    # non-blocking send to the 'below'
+    # rank and receive from the 'above' rank
     if rank > 0 and rank< size-1:
-
-        #print(rank, my_grid[-1,:], flush = True)
-
 
         MPI.COMM_WORLD.Irecv(
                 [row_above, MPI.DOUBLE],
@@ -88,8 +122,9 @@ while num_iter <  max_iter:
                 dest = rank + 1,
                 tag = rank * 2)
 
+    # non-blocking receive from the 'above'
+    # rank and send to the 'above' rank
     if rank==size-1:
-        #print(rank, my_grid[0,:], flush = True)
 
         MPI.COMM_WORLD.Irecv(
                 [row_above, MPI.DOUBLE],
@@ -101,7 +136,8 @@ while num_iter <  max_iter:
                 dest = rank - 1,
                 tag = rank * 2 + 1)
 
-    #print(rank, flush = True)
+    # non-blocking receive from the 'below'
+    # rank and send to the 'above' rank
     if rank > 0 and rank< size-1:
 
         MPI.COMM_WORLD.Irecv(
@@ -114,6 +150,7 @@ while num_iter <  max_iter:
                 dest = rank - 1,
                 tag = rank * 2 + 1)
 
+    # non-block receive from the 'below' rank
     if rank==0:
 
         MPI.COMM_WORLD.Irecv(
@@ -122,25 +159,30 @@ while num_iter <  max_iter:
                 tag = 3)
 
 
-
+    # ensure all of the non-blocking pairs have completed
+    # to avoid race-conditions in the next section.
     MPI.COMM_WORLD.Barrier()
-    #print(rank, flush = True)
 
     if rank >0 and rank < size-1:
 
         row_below.shape=(1,num_points)
         row_above.shape=(1,num_points)
 
-        u,err =numpyTimeStep(r_[row_above,my_grid,row_below],dx,dx)
+        # calculate the next game iteration and the number of
+        # 'alive' cells in the next interation.
+        u,err =numpyTimeStep(r_[row_above,my_grid,row_below])
 
         my_grid=u[1:-1,:]
 
 
-    #print(rank, flush = True)
     if rank==0:
 
         row_below.shape=(1,num_points)
-        u,err=numpyTimeStep(r_[my_grid,row_below],dx,dx)
+
+        # calculate the next game iteration and the number of
+        # 'alive' cells in the next interation.
+        u,err=numpyTimeStep(r_[my_grid,row_below])
+
         my_grid=u[0:-1,:]
 
 
@@ -148,42 +190,47 @@ while num_iter <  max_iter:
     if rank==size-1:
 
         row_above.shape=(1,num_points)
-        u,err=numpyTimeStep(r_[row_above,my_grid],dx,dx)
+
+        # calculate the next game iteration and the number of
+        # 'alive' cells in the next interation.
+        u,err=numpyTimeStep(r_[row_above,my_grid])
+
         my_grid=u[1:,:]
 
 
-    #print(rank, '153', flush = True)
+    # gather the game partitions to the root process
+    MPI.COMM_WORLD.Gather(
+            [err, MPI.DOUBLE],
+            [population_list, MPI.DOUBLE],
+            root)
 
-    if num_iter%500==0:
+    # at the roor process calculate the total number of 'alive' cells
+    if rank==0:
+        current_population = 0
+        for a in population_list:
+            current_population += a
+        print("iterations: %i"%num_iter, "alive cells: %f"%current_population, flush= True)
 
-        MPI.COMM_WORLD.Gather(
-                [err, MPI.DOUBLE],
-                [err_list, MPI.DOUBLE],
-                root)
+    # send the total number of 'alive' cells to each MPI rank
+    current_population = MPI.COMM_WORLD.bcast(
+            current_population,
+            root)
 
-        if rank==0:
-            total_err = 0
-            for a in err_list:
-                total_err=total_err+np.math.sqrt( a**2)
-            total_err=np.math.sqrt(total_err)
-            print("iterations: %i"%num_iter, "error: %f"%total_err, flush= True)
 
-        total_err = MPI.COMM_WORLD.bcast(
-                total_err,
-                root)
-    #print(num_iter, rank, total_err)
 
-    MPI.COMM_WORLD.Barrier()
+    # 'python' version of the gather directive
+    # game partitions are gathered in a python list
+    recvbuf=MPI.COMM_WORLD.gather(my_grid,root)
+    
+    if rank==0:
+        sol=np.array(recvbuf)
+        sol=sol.reshape([num_points,num_points])
+        plt.matshow(sol)
+        plt.savefig(f"results/game_state_{num_iter}")
+
+    # increment the total number of game iterations.
     num_iter=num_iter+1
+    # ensure the next loop is synchronised
+    MPI.COMM_WORLD.Barrier()
 
 MPI.COMM_WORLD.Barrier()
-#print(my_grid.shape, rank)
-
-recvbuf=MPI.COMM_WORLD.gather(my_grid,root)
-if rank==0:
-    sol=np.array(recvbuf)
-    sol=sol.reshape([num_points,num_points])
-    print(num_iter)
-    #print(sol)
-    plt.matshow(sol)
-    plt.savefig('show')
