@@ -153,7 +153,7 @@ Rank:2
 
 Adding on to your code from 2, implement a single pass of the communication pattern:
 
-IMAGE HERE
+![](https://github.com/Edric-Matwiejew/mpi_and_python/blob/main/images/row_wise_partitions.png)
 
 Store incoming values from the 'above' rank in an a NumPy array `upper`, and those coming from a 'below' rank in the NumPy array `lower`.
 
