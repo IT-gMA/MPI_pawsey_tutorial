@@ -22,7 +22,8 @@ Build the singularity container 'mpi4py_latest.sif'.
 With the homebrew package manager installed:
 
 	brew install open-mpi
-	brew install mpi4py numpy matplotlib
+	brew install mpi4py
+	pip3 install numpy matplotlib
 
 ### Windows
 
