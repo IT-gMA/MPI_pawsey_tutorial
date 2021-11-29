@@ -23,7 +23,7 @@ With the homebrew package manager installed:
 
 	brew install open-mpi
 	brew install mpi4py
-	pip3 install numpy matplotlib
+	pip3 install numpy scipy matplotlib
 
 ### Windows
 
@@ -35,7 +35,7 @@ Using the 'apt' package manager on which you have 'superuser' privileges (this w
 
 	sudo apt install libopenmpi-dev python3-pip
         python3 -m pip install setuptools cython 
-        python3 -m pip install numpy mpi4py matplotlib
+        python3 -m pip install numpy mpi4py scipy matplotlib
 
 ## 1.2. Testing Your Setup
 
@@ -239,3 +239,5 @@ print(average_sum, flush = True)
 Use `COMM.Gather` to gather `local_array` to the `rank = 0`. At rank = 0, reshape the the recieved array into a matrix of dimensions `(2, 2)` using the NumPy `reshape` function.
 
 ### 2.6 Putting it All Together: John Conway's Game of Life
+
+https://en.wikipedia.org/wiki/Conway%27s_Game_of_Life
