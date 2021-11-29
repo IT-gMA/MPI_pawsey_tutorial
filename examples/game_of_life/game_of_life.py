@@ -8,7 +8,7 @@ size=MPI.COMM_WORLD.size
 # ID of each process in the MPI communicator
 rank=MPI.COMM_WORLD.rank
 # number of rows and columns in the game of life grid
-num_points=60
+num_points=160
 # ?
 sendbuf=[]
 # 'root' process collects the final result of each iteration
@@ -22,18 +22,18 @@ rows_per_process=int(num_points/size)
 # number of game iterations 
 num_iter=0
 # maximum number of iterations
-max_iter=100
+max_iter=1000
 
 # 'alive' cells in the game
 current_population=1
 # 'alive' cell at each rank   
-population_list = np.empty(size, dtype = np.float64)
+population_list = np.empty(size, dtype = np.int)
 # stop when there are no 'alive' cells
 stop_population = 0
 
 def numpyTimeStep(u):
 
-    kernel = np.ones((3,3), dtype = float)
+    kernel = np.ones((3,3), dtype = int)
     kernel[1,1] = 0
 
 
@@ -61,30 +61,30 @@ def numpyTimeStep(u):
 if rank==0:
 
     # populate initial array
-    #m=np.zeros((num_points,num_points),dtype=float)
-    m = np.random.choice(np.array([0,1], dtype = float), size=(num_points,num_points), p = [0.7,0.3])
+    #m=np.zeros((num_points,num_points),dtype=int)
+    m = np.random.choice(np.array([0,1], dtype = int), size=(num_points,num_points), p = [0.7,0.3])
 
     # game paritions to send
     l=np.array([ m[i*rows_per_process:(i+1)*rows_per_process,:] for i in range(size)])
     sendbuf=l
 
 # local game game partitions
-my_grid = np.empty((rows_per_process, num_points), dtype = np.float64)
+my_grid = np.empty((rows_per_process, num_points), dtype = np.int)
 
 # Scatter the game partitions 
 MPI.COMM_WORLD.Scatter(
-        [sendbuf, MPI.DOUBLE],
-        [my_grid, MPI.DOUBLE],
+        [sendbuf, MPI.INTEGER],
+        [my_grid, MPI.INTEGER],
         root = 0)
 
 # for all ranks except rank '0' (the 'top') create an array
 # for recieval of the boarder-values from the 'above' rank.
 if rank > 0:
-    row_above = np.empty((1, num_points), dtype = np.float64)
+    row_above = np.empty((1, num_points), dtype = np.int)
 # for all ranks except rank 'size - 1' create an array
 # for the recieval of the boarder-values from the 'below' rank.
 if rank < size - 1:
-    row_below = np.empty((1, num_points), dtype = np.float64)
+    row_below = np.empty((1, num_points), dtype = np.int)
 
 
 # tags
@@ -103,7 +103,7 @@ while num_iter <  max_iter:
 
 
         MPI.COMM_WORLD.Isend(
-                [my_grid[-1,:], MPI.DOUBLE],
+                [my_grid[-1,:], MPI.INTEGER],
                 dest = 1,
                 tag = rank * 2)
 
@@ -113,12 +113,12 @@ while num_iter <  max_iter:
     if rank > 0 and rank< size-1:
 
         MPI.COMM_WORLD.Irecv(
-                [row_above, MPI.DOUBLE],
+                [row_above, MPI.INTEGER],
                 source = rank - 1,
                 tag = (rank - 1) * 2)
 
         MPI.COMM_WORLD.Isend(
-                [my_grid[-1,:], MPI.DOUBLE],
+                [my_grid[-1,:], MPI.INTEGER],
                 dest = rank + 1,
                 tag = rank * 2)
 
@@ -127,12 +127,12 @@ while num_iter <  max_iter:
     if rank==size-1:
 
         MPI.COMM_WORLD.Irecv(
-                [row_above, MPI.DOUBLE],
+                [row_above, MPI.INTEGER],
                 source = rank - 1,
                 tag = (rank - 1)* 2)
 
         MPI.COMM_WORLD.Isend(
-                [my_grid[0,:], MPI.DOUBLE],
+                [my_grid[0,:], MPI.INTEGER],
                 dest = rank - 1,
                 tag = rank * 2 + 1)
 
@@ -141,12 +141,12 @@ while num_iter <  max_iter:
     if rank > 0 and rank< size-1:
 
         MPI.COMM_WORLD.Irecv(
-                [row_below, MPI.DOUBLE],
+                [row_below, MPI.INTEGER],
                 source = rank + 1,
                 tag = (rank + 1) * 2 + 1)
 
         MPI.COMM_WORLD.Isend(
-                [my_grid[0,:], MPI.DOUBLE],
+                [my_grid[0,:], MPI.INTEGER],
                 dest = rank - 1,
                 tag = rank * 2 + 1)
 
@@ -154,7 +154,7 @@ while num_iter <  max_iter:
     if rank==0:
 
         MPI.COMM_WORLD.Irecv(
-                [row_below, MPI.DOUBLE],
+                [row_below, MPI.INTEGER],
                 source = 1,
                 tag = 3)
 
@@ -200,8 +200,8 @@ while num_iter <  max_iter:
 
     # gather the game partitions to the root process
     MPI.COMM_WORLD.Gather(
-            [err, MPI.DOUBLE],
-            [population_list, MPI.DOUBLE],
+            [err, MPI.INTEGER],
+            [population_list, MPI.INTEGER],
             root)
 
     # at the roor process calculate the total number of 'alive' cells
