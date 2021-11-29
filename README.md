@@ -33,7 +33,8 @@ With the Window's Subsystem for Linux Installed and Ubuntu chosen as your Linux 
 Using the 'apt' package manager on which you have 'superuser' privileges (this will be the case if you are using your own laptop or an instance on Nimbus).
 
 	sudo apt install libopenmpi-dev python3-pip
-	python3 -m pip install mpi4py
+        python3 -m pip install setuptools cython 
+        python3 -m pip install mpi4py
 
 ## 2. Testing Your Setup
 
