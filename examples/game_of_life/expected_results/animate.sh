@@ -1,3 +1,3 @@
 #!/bin/bash
-convert -delay 20 -loop 0 *.png animation.gif
+convert -delay 50 -loop 0 *.png animation.gif
 
