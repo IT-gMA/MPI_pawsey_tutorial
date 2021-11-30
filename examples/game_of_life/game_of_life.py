@@ -2,27 +2,26 @@ from mpi4py import MPI
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy import signal
+from numpy import r_
 
 # number of processes in the MPI communicator
 size=MPI.COMM_WORLD.size
 # ID of each process in the MPI communicator
 rank=MPI.COMM_WORLD.rank
 # number of rows and columns in the game of life grid
-num_points=160
+num_points=80
 # ?
 sendbuf=[]
 # 'root' process collects the final result of each iteration
 root=0
 
-from numpy import r_
-#j=np.complex(0,1)
 # the number of rows at each rank
 rows_per_process=int(num_points/size)
 
 # number of game iterations 
 num_iter=0
 # maximum number of iterations
-max_iter=1000
+max_iter=100
 
 # 'alive' cells in the game
 current_population=1
@@ -186,7 +185,6 @@ while num_iter <  max_iter:
         my_grid=u[0:-1,:]
 
 
-    #print(rank, flush = True)
     if rank==size-1:
 
         row_above.shape=(1,num_points)
@@ -209,7 +207,7 @@ while num_iter <  max_iter:
         current_population = 0
         for a in population_list:
             current_population += a
-        print("iterations: %i"%num_iter, "alive cells: %f"%current_population, flush= True)
+        print("iterations: %i"%num_iter, "alive cells: %i"%current_population, flush= True)
 
     # send the total number of 'alive' cells to each MPI rank
     current_population = MPI.COMM_WORLD.bcast(
