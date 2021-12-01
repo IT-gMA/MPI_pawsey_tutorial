@@ -11,8 +11,9 @@ if rank == 0:
     x = 10
 else:
     x = 0
+    print("x = {}".format(x))
 
-y = COMM.bcast(x, root = 0)
+y = COMM.bcast(x, root = 0)     # Sends to all other processes
 
 if rank != 0:
-    print(y)
+    print("Rank {}: y = {}".format(rank, y))
